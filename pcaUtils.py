@@ -25,6 +25,9 @@ hep.rcParams.label.paper = False
 
 #Create new directory
 def mkdir_p(mypath):
+    '''Function to create a new directory, if it not already exist
+        - mypath : directory path
+    '''
     from errno import EEXIST
     from os import makedirs,path
     try:
@@ -35,6 +38,16 @@ def mkdir_p(mypath):
         else: raise
 
 def makeLayerClusterDF(TracksterCollection, output_name, output_dir = './postData/'):
+    '''Function to create a dataframe starting from a list of Tracksters. 
+       The output dataframe contains all the layerclusters of each trackster:
+        - evt_id: Trackster event
+        - lc_x, lc_y, lc_z: Trackster's layercluster coordinates
+        - lc_E: Trackster's layercluster energy
+        
+    - TracksterCollection: list of Tracksters
+    - output_name: output file name
+    - output_dir: directory in which the .csv is saved
+    '''
     list_of_df = []
     for i in range(len(TracksterCollection)):
         t = TracksterCollection[i]
@@ -53,6 +66,18 @@ def makeLayerClusterDF(TracksterCollection, output_name, output_dir = './postDat
     return df_merged
 
 def makeLayerClusterDFSingleTrackster(t, output_name, output_dir = './postData/'):
+    '''Function to create a dataframe starting from a single trackster. 
+       The output dataframe contains all the layerclusters of each trackster:
+        - evt_id: Trackster event
+        - lc_x, lc_y, lc_z: Trackster's layercluster coordinates
+        - lc_E: Trackster's layercluster energy
+        
+    - TracksterCollection: list of Tracksters
+    - output_name: output file name
+    - output_dir: directory in which the .csv is saved
+    - tot_energy: Trackster's total energy
+    TODO: Merge this function in makeLayerClusterDF
+    '''
     list_of_df = []
     evt_id = t.event_id
     lcs = t.layerclusters
@@ -69,6 +94,18 @@ def makeLayerClusterDFSingleTrackster(t, output_name, output_dir = './postData/'
     return df_merged
 
 def makeRecHitDF(TracksterCollection, output_name, output_dir = './postData/'):
+    '''Function to create a dataframe starting from a list of Tracksters
+       The output dataframe contains all the rechits of each layerclusters of each trackster:
+        - evt_id: Trackster event
+        - lc_id: Layercluster number
+        - rh_x, rh_y, rh_z: Trackster's rechits coordinates
+        - rh_E: Trackster's layercluster energy
+        - tot_energy: Trackster's total energy
+    - TracksterCollection: list of Tracksters
+    - output_name: output file name
+    - output_dir: directory in which the .csv is saved
+    TODO: Merge this function in makeLayerClusterDF
+    '''
     list_of_df = []
     for i in range(len(TracksterCollection)):
         t = TracksterCollection[i]
@@ -112,6 +149,10 @@ def makeRecHitDF(TracksterCollection, output_name, output_dir = './postData/'):
 
 
 def plots3DwithProjection(data, save = ''):
+    '''
+    Function to plot 3D representation with all the projections on the three planes
+    - data: np.ndarray(4, num_rows). .iloc[:, :3] = coordinates, .iloc[:,3] = energy
+    '''
     fig = plt.figure(figsize = (20,20))
     ax = fig.add_subplot(2,2,1, projection = '3d')    
     cm = plt.cm.get_cmap('hot')
@@ -150,7 +191,18 @@ def plots3DwithProjection(data, save = ''):
 
 
 
-def plots(data,barycenter, components, length, only3D = False, noise = 0, save = "", arrow_scale = 10):
+def plots(data,barycenter, components, length, noise = 0, save = "", arrow_scale = 10):
+    '''
+    Function to plots the eigenvector obtained by the PCA
+    - data: - data: np.ndarray(4, num_rows). .iloc[:, :3] = coordinates, .iloc[:,3] = energy
+    - barycenter: barycenter obtained by the PCA
+    - components: eigenvectors obtained by the PCA
+    - length = eigenvalues obtained by the PCA
+    - noise: if noise > 0 takes the last <noise> rows and plot them with an X instead of a circle (only if you add noise)
+    - save = plot outputfile name
+    - arrow_scale = scaling the length of the arrows in the plots
+    TODO: Remove noise, implement a more general way to scale the arrows
+    '''
     #quiver plots
     fig = plt.figure(figsize = (25,20))
     ax = fig.add_subplot(2,2,1, projection = '3d')    
@@ -245,33 +297,33 @@ def runWPCA(n_components, xyz_T, energy, tot_energy):
     weight_sum2 = 0
     barycenter = [0.,0.,0.]
     covM = np.array([[0.,0.,0.],[0.,0.,0.],[0.,0.,0.]])
+
+    # Compute the barycenter
     for i in range(N):
         weight = energy[i] #computing the weight
         weight_sum += weight
         barycenter[0] += xyz[0][i] * weight
         barycenter[1] += xyz[1][i] * weight
         barycenter[2] += xyz[2][i] * weight
-        
-    #computing the covariance matrix
-    barycenter /= weight_sum
+    barycenter /= weight_sum    
+    
+    #Compute the covariance matrix
     covM = np.array([[0.,0.,0.],[0.,0.,0.],[0.,0.,0.]])
     for i in range(N):
         weight = energy[i]/tot_energy
-        # print(weight)
         weight_sum2 += weight * weight
         for x in range(3):
             for y in range(3):
-                covM[x][y] = weight * (xyz[x][i] - barycenter[x]) * (xyz[y][i] - barycenter[y])
+                covM[x][y] += weight * (xyz[x][i] - barycenter[x]) * (xyz[y][i] - barycenter[y])
     
     covMW = covM * 1./(1-weight_sum2) #weighted covariance matrix
-    
     #get eigenvalues and eigenvectors and sort them
     eigen_values , eigen_vectors = np.linalg.eigh(covMW)
     sorted_index = np.argsort(eigen_values)[::-1]
     sorted_eigenvalue = eigen_values[sorted_index]
     sorted_eigenvectors = eigen_vectors[:,sorted_index]
 
-    return sorted_eigenvectors, sorted_eigenvalue, covMW, covM, barycenter
+    return sorted_eigenvectors.T, sorted_eigenvalue, covMW, covM, barycenter
 
 def pcaSummary(pca):
     print("Covariance Matrix \n {} \n ".format(pca.get_covariance()))
